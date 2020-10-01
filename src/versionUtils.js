@@ -1,11 +1,8 @@
-const pad = (stringToPad, width, paddingCharacter) => {
-  const padChar = paddingCharacter || '0';
-  const toPad = stringToPad.toString();
-  return toPad.length >= width
-    ? toPad
-    : new Array((width - toPad.length) + 1).join(padChar) + toPad;
-};
-
+/**
+ * 
+ * @param {string} s
+ * @returns {string} 
+ */
 const trimText = (s) => {
   const indexOfString = s.search(/[^\d]/);
   let result = s;
@@ -23,35 +20,57 @@ const versionEquals = (versionA, versionB) => (
   && versionA.patch === versionB.patch
 );
 
-const versionStringToVersion = (versionString, currentVersion, currentVersionCode) => {
+/**
+ * 
+ * @param {string} versionString new version string
+ */
+const versionStringToVersion = (versionString) => {
   const versionParts = versionString.split('.');
-  let build = 1;
-  if (currentVersion && versionEquals(currentVersion, versionStringToVersion(versionString))) {
-    const newVersionCode = (currentVersionCode + 1).toString();
-    build = +(newVersionCode.substr(newVersionCode.length - 1));
-    if (build === 0) {
-      throw new Error('Sorry you have more than 10 builds using that version consider bumping version or change your version manually');
-    }
-  }
-
   return {
     major: +trimText(versionParts[0] || '0'),
     minor: +trimText(versionParts[1] || '1'),
     patch: +trimText(versionParts[2] || '0'),
-    build,
+    build: +trimText(versionParts[3] || '1'),
   };
 };
 
+/**
+ * Compares current and new versions to determine if the build number needs to be incremented
+ * This returns the new versions with updated build number
+ * @param {{major: number, minor: number, patch: number, build: number}} currentVersion 
+ * @param {{major: number, minor: number, patch: number, build: number}} newVersion
+ * @throws if max build number has been exceeded
+ * @returns {{major: number, minor: number, patch: number, build: number}}
+ */
+const updateVersionBuild = (currentVersion, newVersion, maxBuilds = 100) => {
+  if (versionEquals(currentVersion, newVersion) && newVersion.build < currentVersion.build) {
+    const newBuildNumber = currentVersion.build + 1;
+    if (newBuildNumber >= maxBuilds) {
+      throw new Error('Sorry you have more than 100 builds using that version consider bumping version or change your version manually');
+    }
+    return {
+      ...newVersion,
+      build: newBuildNumber,
+    };
+  }
+  return newVersion;
+};
+
+/**
+ * 
+ * @param {{major: number, minor: number, patch: number}} version
+ */
 const versionToVersionCode = (version) => {
-  const major = pad(version.major, 2);
-  const minor = pad(version.minor, 2);
-  const patch = pad(version.patch, 2);
-  const { build } = version;
+  const major = version.major.toString().padStart(2, 0);
+  const minor = version.minor.toString().padStart(2, 0);
+  const patch = version.patch.toString().padStart(2, 0);
+  const build = version.build.toString().padStart(2, 0);
 
   return +(`${major}${minor}${patch}${build}`);
 };
 
 module.exports = {
+  updateVersionBuild,
   versionStringToVersion,
   versionToVersionCode,
 };

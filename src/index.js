@@ -6,7 +6,7 @@ import g2js from 'gradle-to-js/lib/parser';
 import path from 'path';
 import plist from 'plist';
 import yargs from 'yargs';
-import { versionStringToVersion, versionToVersionCode } from './versionUtils';
+import { updateVersionBuild, versionStringToVersion, versionToVersionCode } from './versionUtils';
 
 const { argv } = yargs
   .option('plistPaths', {
@@ -30,16 +30,16 @@ const paths = {
 
 /**
  *
- * @param {string} versionText
+ * @param {string} versionString
  * @param {string} pathToPackage path to package.json
  * @returns {Object} contents of the package.json of the current directory
  */
-function setPackageVersion(versionText, pathToPackage = paths.packageJson) {
+function setPackageVersion(versionString, pathToPackage = paths.packageJson) {
   let packageJSON = null;
   try {
     packageJSON = JSON.parse(fs.readFileSync(pathToPackage));
-    display(chalk.yellow(`Will set package version to ${chalk.bold.underline(versionText)}`));
-    packageJSON.version = versionText;
+    display(chalk.yellow(`Will set package version to ${chalk.bold.underline(versionString)}`));
+    packageJSON.version = versionString;
     fs.writeFileSync(pathToPackage, `${JSON.stringify(packageJSON, null, 2)}\n`);
     display(chalk.green(`Version replaced in ${chalk.bold('package.json')}`));
   } catch (err) {
@@ -51,26 +51,18 @@ function setPackageVersion(versionText, pathToPackage = paths.packageJson) {
 
 /**
  * Gets the current version info for iOS
- * @param {string} versionText version
+ * @param {string} versionString version
  * @param {string} plistPath path to plist
  */
-function getIOSVersionInfo(versionText, plistPath) {
+function getIOSVersionInfo(plistPath) {
   let versionInfo = {
-    currentVersionCode: null,
-    currentVersion: null,
     version: null,
     versionCode: null,
   };
-
   try {
     const plistInfo = plist.parse(fs.readFileSync(plistPath, 'utf8'));
-    const currentVersion = versionStringToVersion(plistInfo.CFBundleShortVersionString);
-    const versionCodeParts = plistInfo.CFBundleVersion.toString().split('.');
-    const currentVersionCode = +(versionCodeParts[versionCodeParts.length - 1]);
-    const version = versionStringToVersion(versionText, currentVersion, currentVersionCode);
+    const version = versionStringToVersion(plistInfo.CFBundleVersion);
     versionInfo = {
-      currentVersionCode,
-      currentVersion,
       version,
       versionCode: version.build,
     };
@@ -82,19 +74,18 @@ function getIOSVersionInfo(versionText, plistPath) {
 
 /**
  * Set the current version info for iOS
- * @param {string} versionText version
+ * @param {string} versionString version string
+ * @param {{major: number, minor: number, patch: number}} version
  * @param {string} plistPath path to plist
  */
-function setIOSApplicationVersion(versionText, plistPath) {
-  const { version } = getIOSVersionInfo(versionText, plistPath);
+function setIOSApplicationVersion(versionString, version, plistPath) {
   const bundleVersion = `${version.major}.${version.minor}.${version.patch}.${version.build}`;
   if (version) {
-    display(`\n${chalk.yellow('IOS version info:')}\n${version}\n`);
-    display(chalk.yellow(`Will set CFBundleShortVersionString to ${chalk.bold.underline(versionText)}`));
+    display(chalk.yellow(`Will set CFBundleShortVersionString to ${chalk.bold.underline(versionString)}`));
     display(chalk.yellow(`Will set CFBundleVersion to ${chalk.bold.underline(bundleVersion)}`));
     try {
       const plistInfo = plist.parse(fs.readFileSync(plistPath, 'utf8'));
-      plistInfo.CFBundleShortVersionString = versionText;
+      plistInfo.CFBundleShortVersionString = versionString;
       plistInfo.CFBundleVersion = bundleVersion;
       fs.writeFileSync(plistPath, plist.build(plistInfo), 'utf8');
       display(chalk.green(`Version replaced in ${chalk.bold('Info.plist')}`));
@@ -104,41 +95,42 @@ function setIOSApplicationVersion(versionText, plistPath) {
   }
 }
 
-async function getAndroidVersionInfo(versionText) {
+/**
+ * Gets the current android version info
+ * @param {string} versionString
+ */
+async function getAndroidVersionInfo() {
   let versionInfo = {
-    currentVersionCode: null,
-    currentVersion: null,
     version: null,
     versionCode: null,
   };
   try {
-    const gradle = await g2js.parseFile(paths.buildGradle);
-    const currentVersion = versionStringToVersion(gradle.android.defaultConfig.versionName);
-    const currentVersionCode = +(gradle.android.defaultConfig.versionCode);
-    const version = versionStringToVersion(versionText, currentVersion, currentVersionCode);
+    const { android: { defaultConfig } } = await g2js.parseFile(paths.buildGradle);
+    if (!defaultConfig.versionName && !defaultConfig.versionCode) {
+      throw new Error(`Cannot find attribute versionCode or versionName in file ${path.resolve(paths.buildGradle)}`);
+    }
+    const version = versionStringToVersion(defaultConfig.versionName);
+    const versionCode = +(defaultConfig.versionCode);
     versionInfo = {
-      currentVersionCode,
-      currentVersion,
       version,
-      versionCode: versionToVersionCode(version),
+      versionCode,
     };
   } catch (err) {
-    display(chalk.yellowBright(`${chalk.bold.underline('WARNING:')} Cannot find attribute versionCode in file ${path.resolve(paths.buildGradle)}. Android version configuration will be skipped`));
+    display(chalk.yellowBright(`${chalk.bold.underline('WARNING:')} ${err}. Android version configuration will be skipped`));
   }
   return versionInfo;
 }
 
-async function setAndroidApplicationVersion(versionText) {
-  const { version, versionCode } = await getAndroidVersionInfo(versionText);
-
-  if (versionCode) {
-    display(chalk.yellow(`\nAndroid version info:\n${version}\n`));
-    display(chalk.yellow(`Will set Android version to ${chalk.bold.underline(versionText)}`));
+function setAndroidApplicationVersion(version, versionCode) {
+  const versionName = `${version.major}.${version.minor}.${version.patch}.${version.build}`;
+  if (version) {
+    display(chalk.yellow(`Will set Android version to ${chalk.bold.underline(versionName)}`));
     display(chalk.yellow(`Will set Android version code to ${chalk.bold.underline(versionCode)}`));
     try {
       const buildGradle = fs.readFileSync(paths.buildGradle, 'utf8');
-      const newBuildGradle = buildGradle.replace(/versionCode \d+/g, `versionCode ${versionCode}`)
-        .replace(/versionName "[^"]*"/g, `versionName "${versionText}"`);
+      const newBuildGradle = buildGradle
+        .replace(/versionCode \d+/g, `versionCode ${versionCode}`)
+        .replace(/versionName "[^"]*"/g, `versionName "${versionName}"`);
 
       fs.writeFileSync(paths.buildGradle, newBuildGradle, 'utf8');
       display(chalk.green(`Version replaced in ${chalk.bold('build.gradle')}`));
@@ -149,8 +141,9 @@ async function setAndroidApplicationVersion(versionText) {
     try {
       const androidManifest = fs.readFileSync(paths.androidManifest, 'utf8');
       if (androidManifest.includes('android:versionCode') || androidManifest.includes('android:versionName')) {
-        const newAndroidManifest = androidManifest.replace(/android:versionCode="\d*"/g, `android:versionCode="${versionCode}"`)
-          .replace(/android:versionName="[^"]*"/g, `android:versionName="${versionText}"`);
+        const newAndroidManifest = androidManifest
+          .replace(/android:versionCode="\d*"/g, `android:versionCode="${versionCode}"`)
+          .replace(/android:versionName="[^"]*"/g, `android:versionName="${versionName}"`);
 
         fs.writeFileSync(paths.androidManifest, newAndroidManifest, 'utf8');
         display(chalk.green(`Version replaced in ${chalk.bold('AndroidManifest.xml')}`));
@@ -161,15 +154,26 @@ async function setAndroidApplicationVersion(versionText) {
   }
 }
 
+const updateIOSApplicationVersion = (versionString, plistPath) => {
+  const currentVersionInfo = getIOSVersionInfo(plistPath);
+  const version = updateVersionBuild(currentVersionInfo.version, versionStringToVersion(versionString));
+  setIOSApplicationVersion(versionString, version, plistPath);
+};
+
+const updateAndroidApplicationVersion = async (versionString) => {
+  const currentVersionInfo = await getAndroidVersionInfo();
+  const newVersion = updateVersionBuild(currentVersionInfo.version, versionStringToVersion(versionString));
+  setAndroidApplicationVersion(newVersion, versionToVersionCode(newVersion));
+};
+
 const changeVersion = async () => {
-  const versionText = argv?.version || process.argv[2];
-  const appName = setPackageVersion(versionText).name;
+  const versionString = argv?.version || process.argv[2];
+  const appName = setPackageVersion(versionString).name;
   const plistPaths = argv?.plistPaths || [paths.infoPlist.replace('<APP_NAME>', appName)];
 
-  const plistPromises = plistPaths
-    .map(plistPath => setIOSApplicationVersion(versionText, plistPath));
-  await Promise.all(...plistPromises);
-  await setAndroidApplicationVersion(versionText);
+  plistPaths.map(plistPath => updateIOSApplicationVersion(versionString, plistPath));
+
+  await updateAndroidApplicationVersion(versionString);
 
   display('');
 };
