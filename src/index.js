@@ -156,13 +156,19 @@ function setAndroidApplicationVersion(version, versionCode) {
 
 const updateIOSApplicationVersion = (versionString, plistPath) => {
   const currentVersionInfo = getIOSVersionInfo(plistPath);
-  const version = updateVersionBuild(currentVersionInfo.version, versionStringToVersion(versionString));
+  const version = updateVersionBuild(
+    currentVersionInfo.version,
+    versionStringToVersion(versionString),
+  );
   setIOSApplicationVersion(versionString, version, plistPath);
 };
 
 const updateAndroidApplicationVersion = async (versionString) => {
   const currentVersionInfo = await getAndroidVersionInfo();
-  const newVersion = updateVersionBuild(currentVersionInfo.version, versionStringToVersion(versionString));
+  const newVersion = updateVersionBuild(
+    currentVersionInfo.version,
+    versionStringToVersion(versionString),
+  );
   setAndroidApplicationVersion(newVersion, versionToVersionCode(newVersion));
 };
 

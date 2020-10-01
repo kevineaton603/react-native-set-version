@@ -1,7 +1,7 @@
 /**
- * 
+ *
  * @param {string} s
- * @returns {string} 
+ * @returns {string}
  */
 const trimText = (s) => {
   const indexOfString = s.search(/[^\d]/);
@@ -21,7 +21,7 @@ const versionEquals = (versionA, versionB) => (
 );
 
 /**
- * 
+ *
  * @param {string} versionString new version string
  */
 const versionStringToVersion = (versionString) => {
@@ -37,7 +37,7 @@ const versionStringToVersion = (versionString) => {
 /**
  * Compares current and new versions to determine if the build number needs to be incremented
  * This returns the new versions with updated build number
- * @param {{major: number, minor: number, patch: number, build: number}} currentVersion 
+ * @param {{major: number, minor: number, patch: number, build: number}} currentVersion
  * @param {{major: number, minor: number, patch: number, build: number}} newVersion
  * @throws if max build number has been exceeded
  * @returns {{major: number, minor: number, patch: number, build: number}}
@@ -57,7 +57,7 @@ const updateVersionBuild = (currentVersion, newVersion, maxBuilds = 100) => {
 };
 
 /**
- * 
+ * Creates a version code from android devices
  * @param {{major: number, minor: number, patch: number}} version
  */
 const versionToVersionCode = (version) => {
