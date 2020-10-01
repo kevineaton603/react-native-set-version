@@ -21,8 +21,6 @@ const { argv } = yargs
 
 const display = console.log; // eslint-disable-line no-console
 
-display({ argv });
-
 const paths = {
   androidManifest: './android/app/src/main/AndroidManifest.xml',
   buildGradle: './android/app/build.gradle',
@@ -168,7 +166,6 @@ const changeVersion = async () => {
   const appName = setPackageVersion(versionText).name;
   const plistPaths = argv?.plistPaths || [paths.infoPlist.replace('<APP_NAME>', appName)];
 
-  display(plistPaths);
   const plistPromises = plistPaths
     .map(plistPath => setIOSApplicationVersion(versionText, plistPath));
   await Promise.all(...plistPromises);
